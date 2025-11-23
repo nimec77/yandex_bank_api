@@ -9,6 +9,7 @@ pub struct Account {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, PartialOrd)]
+#[serde(transparent)]
 pub struct Amount(u64);
 
 impl Amount {
