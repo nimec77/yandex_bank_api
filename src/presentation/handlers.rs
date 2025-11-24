@@ -5,7 +5,7 @@ use actix_web::{HttpResponse, ResponseError, web};
 use chrono::Utc;
 use serde::Serialize;
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument, warn};
 
 // AppState holding the service
 pub struct AppState {
@@ -57,6 +57,15 @@ impl ResponseError for BankError {
             BankError::Database(msg) => serde_json::json!({ "message": msg }),
         };
 
+        // Log error based on severity
+        match self {
+            BankError::Validation(_) => warn!(error = %error_msg, status = %status, "Validation error"),
+            BankError::NotFound(_) => warn!(error = %error_msg, status = %status, "Resource not found"),
+            BankError::InsufficientFunds => warn!(error = %error_msg, status = %status, "Insufficient funds"),
+            BankError::Unauthorized(_) => warn!(error = %error_msg, status = %status, "Unauthorized"),
+            BankError::Database(_) => error!(error = %error_msg, status = %status, "Database error"),
+        }
+
         let error_response = ErrorResponse {
             error: error_msg,
             details,
@@ -103,7 +112,11 @@ pub async fn create_account(
     req: web::Json<CreateAccount>,
 ) -> Result<HttpResponse, BankError> {
     info!(name = %req.name, "Creating new account");
-    let account = state.service.create_account(req.into_inner()).await?;
+    let account = state.service.create_account(req.into_inner()).await
+        .map_err(|e| {
+            error!(error = %e, "Failed to create account");
+            e
+        })?;
     tracing::Span::current().record("account_id", account.id);
     info!(
         account_id = account.id,
@@ -120,7 +133,11 @@ pub async fn get_account(
 ) -> Result<HttpResponse, BankError> {
     let account_id = path.into_inner();
     info!(account_id = account_id, "Getting account balance");
-    let account = state.service.get_account(account_id).await?;
+    let account = state.service.get_account(account_id).await
+        .map_err(|e| {
+            error!(account_id = account_id, error = %e, "Failed to get account");
+            e
+        })?;
     info!(
         account_id = account.id,
         balance = account.balance.inner(),
@@ -146,7 +163,11 @@ pub async fn deposit(
     let account = state
         .service
         .deposit(account_id, req.into_inner().amount)
-        .await?;
+        .await
+        .map_err(|e| {
+            error!(account_id = account_id, amount = amount, error = %e, "Failed to deposit");
+            e
+        })?;
     info!(
         account_id = account.id,
         balance = account.balance.inner(),
@@ -172,7 +193,11 @@ pub async fn withdraw(
     let account = state
         .service
         .withdraw(account_id, req.into_inner().amount)
-        .await?;
+        .await
+        .map_err(|e| {
+            error!(account_id = account_id, amount = amount, error = %e, "Failed to withdraw");
+            e
+        })?;
     info!(
         account_id = account.id,
         balance = account.balance.inner(),
@@ -200,7 +225,17 @@ pub async fn transfer(
         amount = amount,
         "Processing transfer"
     );
-    state.service.transfer(transfer_req).await?;
+    state.service.transfer(transfer_req).await
+        .map_err(|e| {
+            error!(
+                from_account_id = from_id,
+                to_account_id = to_id,
+                amount = amount,
+                error = %e,
+                "Failed to transfer"
+            );
+            e
+        })?;
     info!(
         from_account_id = from_id,
         to_account_id = to_id,

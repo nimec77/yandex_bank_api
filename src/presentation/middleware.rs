@@ -11,7 +11,7 @@ use std::{
     task::{Context, Poll},
     time::Instant,
 };
-use tracing::info;
+use tracing::{debug, info, trace};
 use uuid::Uuid;
 
 // Request ID Middleware
@@ -55,6 +55,16 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = self.service.clone();
         let request_id = Uuid::new_v4().to_string();
+        
+        let span = tracing::span!(
+            tracing::Level::TRACE,
+            "request_id_middleware",
+            request_id = %request_id
+        );
+        let _guard = span.enter();
+
+        trace!("Generating request ID");
+        debug!(request_id = %request_id, "Processing request with ID");
 
         // Add request ID to request extensions
         req.extensions_mut().insert(request_id.clone());
@@ -72,6 +82,7 @@ where
                     .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
             );
 
+            trace!(request_id = %request_id, "Request ID added to response headers");
             Ok(res)
         })
     }
@@ -120,13 +131,31 @@ where
         let start = Instant::now();
         let method = req.method().clone();
         let path = req.path().to_string();
-
-        // Get request ID from extensions if available
+        
+        // Get request ID from extensions if available (before moving req)
         let request_id = req
             .extensions()
             .get::<String>()
             .cloned()
             .unwrap_or_else(|| "unknown".to_string());
+        
+        let span = tracing::span!(
+            tracing::Level::TRACE,
+            "timing_middleware",
+            method = %method,
+            path = %path,
+            request_id = %request_id
+        );
+        let _guard = span.enter();
+
+        trace!("Starting request timing");
+
+        debug!(
+            method = %method,
+            path = %path,
+            request_id = %request_id,
+            "Processing request"
+        );
 
         let fut = service.call(req);
 
@@ -134,6 +163,8 @@ where
             let res = fut.await?;
             let duration = start.elapsed();
             let duration_ms = duration.as_millis();
+            
+            tracing::Span::current().record("duration_ms", duration_ms as u64);
 
             // Add timing header
             let mut res = res;
