@@ -19,6 +19,12 @@ impl InMemoryAccountRepository {
     }
 }
 
+impl Default for InMemoryAccountRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl AccountRepository for InMemoryAccountRepository {
     async fn save(&self, account: Account) -> Result<()> {
