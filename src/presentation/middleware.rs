@@ -1,10 +1,11 @@
 use actix_web::{
+    Error, HttpMessage,
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::header::{HeaderName, HeaderValue},
-    Error, HttpMessage,
 };
+
 use std::{
-    future::{ready, Ready},
+    future::{Ready, ready},
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -63,7 +64,7 @@ where
 
         Box::pin(async move {
             let mut res = fut.await?;
-            
+
             // Add request ID to response headers
             res.headers_mut().insert(
                 HeaderName::from_static("x-request-id"),
@@ -155,4 +156,3 @@ where
         })
     }
 }
-

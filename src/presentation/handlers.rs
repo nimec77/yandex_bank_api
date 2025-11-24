@@ -48,7 +48,7 @@ impl ResponseError for BankError {
     fn error_response(&self) -> HttpResponse {
         let status = self.status_code();
         let error_msg = self.to_string();
-        
+
         let details = match self {
             BankError::Validation(msg) => serde_json::json!({ "message": msg }),
             BankError::NotFound(msg) => serde_json::json!({ "message": msg }),
@@ -73,9 +73,7 @@ impl From<anyhow::Error> for BankError {
             Some(DomainError::AccountNotFound) => {
                 BankError::NotFound("Account not found".to_string())
             }
-            Some(DomainError::InvalidAmount) => {
-                BankError::Validation("Invalid amount".to_string())
-            }
+            Some(DomainError::InvalidAmount) => BankError::Validation("Invalid amount".to_string()),
             None => BankError::Database(err.to_string()),
         }
     }
@@ -107,7 +105,11 @@ pub async fn create_account(
     info!(name = %req.name, "Creating new account");
     let account = state.service.create_account(req.into_inner()).await?;
     tracing::Span::current().record("account_id", account.id);
-    info!(account_id = account.id, balance = account.balance.inner(), "Account created successfully");
+    info!(
+        account_id = account.id,
+        balance = account.balance.inner(),
+        "Account created successfully"
+    );
     Ok(HttpResponse::Created().json(account))
 }
 
@@ -119,7 +121,11 @@ pub async fn get_account(
     let account_id = path.into_inner();
     info!(account_id = account_id, "Getting account balance");
     let account = state.service.get_account(account_id).await?;
-    info!(account_id = account.id, balance = account.balance.inner(), "Account retrieved successfully");
+    info!(
+        account_id = account.id,
+        balance = account.balance.inner(),
+        "Account retrieved successfully"
+    );
     Ok(HttpResponse::Ok().json(account))
 }
 
@@ -132,12 +138,20 @@ pub async fn deposit(
     let account_id = path.into_inner();
     let amount = req.amount.inner();
     tracing::Span::current().record("amount", amount);
-    info!(account_id = account_id, amount = amount, "Processing deposit");
+    info!(
+        account_id = account_id,
+        amount = amount,
+        "Processing deposit"
+    );
     let account = state
         .service
         .deposit(account_id, req.into_inner().amount)
         .await?;
-    info!(account_id = account.id, balance = account.balance.inner(), "Deposit completed successfully");
+    info!(
+        account_id = account.id,
+        balance = account.balance.inner(),
+        "Deposit completed successfully"
+    );
     Ok(HttpResponse::Ok().json(account))
 }
 
@@ -150,12 +164,20 @@ pub async fn withdraw(
     let account_id = path.into_inner();
     let amount = req.amount.inner();
     tracing::Span::current().record("amount", amount);
-    info!(account_id = account_id, amount = amount, "Processing withdrawal");
+    info!(
+        account_id = account_id,
+        amount = amount,
+        "Processing withdrawal"
+    );
     let account = state
         .service
         .withdraw(account_id, req.into_inner().amount)
         .await?;
-    info!(account_id = account.id, balance = account.balance.inner(), "Withdrawal completed successfully");
+    info!(
+        account_id = account.id,
+        balance = account.balance.inner(),
+        "Withdrawal completed successfully"
+    );
     Ok(HttpResponse::Ok().json(account))
 }
 

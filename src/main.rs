@@ -20,8 +20,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
-            .wrap(RequestIdMiddleware)
             .wrap(TimingMiddleware)
+            .wrap(RequestIdMiddleware)
             .service(
                 web::scope("/api")
                     .route("/health", web::get().to(health_check))
