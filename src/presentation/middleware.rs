@@ -257,28 +257,23 @@ where
         if JwtAuthMiddleware::is_public_route(&path) {
             trace!(path = %path, "Skipping JWT validation for public route");
             let fut = service.call(req);
-            return Box::pin(async move { fut.await });
+            return Box::pin(fut);
         }
 
         // Extract Authorization header
         let auth_header = req.headers().get("Authorization")
             .and_then(|h| h.to_str().ok())
-            .and_then(|s| {
-                if s.starts_with("Bearer ") {
-                    Some(s[7..].to_string())
-                } else {
-                    None
-                }
-            });
+            .and_then(|s| s.strip_prefix("Bearer "))
+            .map(|s| s.to_string());
 
         let token = match auth_header {
             Some(t) => t,
             None => {
                 warn!(path = %path, "Missing Authorization header");
                 return Box::pin(async move {
-                    Err(Error::from(actix_web::error::ErrorUnauthorized(
+                    Err(actix_web::error::ErrorUnauthorized(
                         serde_json::json!({"error": "missing bearer"}).to_string()
-                    )))
+                    ))
                 });
             }
         };
@@ -289,9 +284,9 @@ where
             Err(e) => {
                 warn!(path = %path, error = %e, "Invalid JWT token");
                 return Box::pin(async move {
-                    Err(Error::from(actix_web::error::ErrorUnauthorized(
+                    Err(actix_web::error::ErrorUnauthorized(
                         serde_json::json!({"error": "invalid token"}).to_string()
-                    )))
+                    ))
                 });
             }
         };
@@ -306,6 +301,6 @@ where
         debug!(user_id = %user_id, path = %path, "User authenticated");
 
         let fut = service.call(req);
-        Box::pin(async move { fut.await })
+        Box::pin(fut)
     }
 }

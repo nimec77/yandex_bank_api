@@ -23,7 +23,7 @@ pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Er
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
         argon2::Params::new(ARGON2_M_COST, ARGON2_T_COST, ARGON2_P_COST, None)
-            .map_err(|e| argon2::password_hash::Error::from(e))?,
+            .map_err(argon2::password_hash::Error::from)?,
     );
     
     let password_hash = argon2.hash_password(password.as_bytes(), &salt)?;
@@ -36,7 +36,7 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, argon2::passw
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
         argon2::Params::new(ARGON2_M_COST, ARGON2_T_COST, ARGON2_P_COST, None)
-            .map_err(|e| argon2::password_hash::Error::from(e))?,
+            .map_err(argon2::password_hash::Error::from)?,
     );
     
     match argon2.verify_password(password.as_bytes(), &parsed_hash) {
