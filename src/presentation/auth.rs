@@ -2,7 +2,7 @@ use crate::application::auth_service::AuthService;
 use crate::data::user_repository::InMemoryUserRepository;
 use crate::domain::user::{CreateUser, LoginRequest};
 use crate::presentation::handlers::BankError;
-use actix_web::{web, HttpResponse};
+use actix_web::{HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info, instrument};
@@ -34,8 +34,10 @@ pub async fn register(
     req: web::Json<CreateUser>,
 ) -> Result<HttpResponse, BankError> {
     info!(email = %req.email, "Registration request received");
-    
-    let user = auth_service.register_user(req.into_inner()).await
+
+    let user = auth_service
+        .register_user(req.into_inner())
+        .await
         .map_err(|e| {
             error!(error = %e, "Failed to register user");
             BankError::from(e)
@@ -56,12 +58,11 @@ pub async fn login(
     req: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, BankError> {
     info!(email = %req.email, "Login request received");
-    
-    let token = auth_service.login(req.into_inner()).await
-        .map_err(|e| {
-            error!(error = %e, "Failed to login");
-            BankError::from(e)
-        })?;
+
+    let token = auth_service.login(req.into_inner()).await.map_err(|e| {
+        error!(error = %e, "Failed to login");
+        BankError::from(e)
+    })?;
 
     let response = LoginResponse {
         access_token: token,
@@ -77,12 +78,11 @@ pub async fn get_token(
     req: web::Json<GetTokenRequest>,
 ) -> Result<HttpResponse, BankError> {
     info!(user_id = %req.user_id, "Token request received");
-    
-    let token = auth_service.get_token(&req.user_id).await
-        .map_err(|e| {
-            error!(error = %e, "Failed to generate token");
-            BankError::from(e)
-        })?;
+
+    let token = auth_service.get_token(&req.user_id).await.map_err(|e| {
+        error!(error = %e, "Failed to generate token");
+        BankError::from(e)
+    })?;
 
     let response = TokenResponse {
         access_token: token,
@@ -91,4 +91,3 @@ pub async fn get_token(
     info!("Token generated successfully");
     Ok(HttpResponse::Ok().json(response))
 }
-

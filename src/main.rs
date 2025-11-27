@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::{App, HttpServer, web, middleware::DefaultHeaders};
+use actix_web::{App, HttpServer, middleware::DefaultHeaders, web};
 use std::sync::Arc;
 use tracing::{info, instrument};
 use yandex_bank_api::application::auth_service::AuthService;
@@ -11,24 +11,26 @@ use yandex_bank_api::presentation::auth::{get_token, login, register};
 use yandex_bank_api::presentation::handlers::{
     AppState, create_account, deposit, get_account, health_check, transfer, withdraw,
 };
-use yandex_bank_api::presentation::middleware::{JwtAuthMiddleware, RequestIdMiddleware, TimingMiddleware};
+use yandex_bank_api::presentation::middleware::{
+    JwtAuthMiddleware, RequestIdMiddleware, TimingMiddleware,
+};
 
 #[tokio::main]
 #[instrument]
 async fn main() -> std::io::Result<()> {
     // Load environment variables
     dotenv::dotenv().ok();
-    
+
     // Initialize logging
     info!("Initializing logging subsystem");
     init_logging();
     info!("Logging initialized successfully");
 
     // Read environment variables
-    let jwt_secret = std::env::var("JWT_SECRET")
-        .expect("JWT_SECRET must be set in environment variables");
-    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let jwt_secret =
+        std::env::var("JWT_SECRET").expect("JWT_SECRET must be set in environment variables");
+    let allowed_origins =
+        std::env::var("ALLOWED_ORIGINS").unwrap_or_else(|_| "http://localhost:3000".to_string());
     let port = std::env::var("PORT")
         .unwrap_or_else(|_| "8080".to_string())
         .parse::<u16>()
@@ -58,14 +60,17 @@ async fn main() -> std::io::Result<()> {
     info!("Application state initialized");
 
     // Parse allowed origins
-    let origins: Vec<String> = allowed_origins.split(',').map(|s| s.trim().to_string()).collect();
+    let origins: Vec<String> = allowed_origins
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
     info!(origins = ?origins, "Configured CORS origins");
 
     info!("Configuring HTTP server");
     let origins_clone = origins.clone();
     let server = HttpServer::new(move || {
         tracing::trace!("Creating new application instance");
-        
+
         // Configure CORS
         let mut cors = Cors::default()
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
@@ -93,7 +98,7 @@ async fn main() -> std::io::Result<()> {
                     .add(("X-Content-Type-Options", "nosniff"))
                     .add(("Referrer-Policy", "no-referrer"))
                     .add(("Permissions-Policy", "geolocation=()"))
-                    .add(("Cross-Origin-Opener-Policy", "same-origin"))
+                    .add(("Cross-Origin-Opener-Policy", "same-origin")),
             )
             .wrap(JwtAuthMiddleware::new(jwt_secret.clone()))
             .wrap(TimingMiddleware)

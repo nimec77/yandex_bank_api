@@ -4,6 +4,7 @@ use actix_web::{
     http::header::{HeaderName, HeaderValue},
 };
 
+use serde_json;
 use std::{
     future::{Ready, ready},
     pin::Pin,
@@ -13,7 +14,6 @@ use std::{
 };
 use tracing::{debug, info, trace, warn};
 use uuid::Uuid;
-use serde_json;
 
 // AuthenticatedUser struct to store in extensions
 #[derive(Clone, Debug)]
@@ -62,7 +62,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = self.service.clone();
         let request_id = Uuid::new_v4().to_string();
-        
+
         let span = tracing::span!(
             tracing::Level::TRACE,
             "request_id_middleware",
@@ -138,14 +138,14 @@ where
         let start = Instant::now();
         let method = req.method().clone();
         let path = req.path().to_string();
-        
+
         // Get request ID from extensions if available (before moving req)
         let request_id = req
             .extensions()
             .get::<String>()
             .cloned()
             .unwrap_or_else(|| "unknown".to_string());
-        
+
         let span = tracing::span!(
             tracing::Level::TRACE,
             "timing_middleware",
@@ -170,7 +170,7 @@ where
             let res = fut.await?;
             let duration = start.elapsed();
             let duration_ms = duration.as_millis();
-            
+
             tracing::Span::current().record("duration_ms", duration_ms as u64);
 
             // Add timing header
@@ -206,8 +206,7 @@ impl JwtAuthMiddleware {
     }
 
     fn is_public_route(path: &str) -> bool {
-        path == "/api/health" 
-            || path.starts_with("/api/auth/")
+        path == "/api/health" || path.starts_with("/api/auth/")
     }
 }
 
@@ -261,7 +260,9 @@ where
         }
 
         // Extract Authorization header
-        let auth_header = req.headers().get("Authorization")
+        let auth_header = req
+            .headers()
+            .get("Authorization")
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.strip_prefix("Bearer "))
             .map(|s| s.to_string());
@@ -272,7 +273,7 @@ where
                 warn!(path = %path, "Missing Authorization header");
                 return Box::pin(async move {
                     Err(actix_web::error::ErrorUnauthorized(
-                        serde_json::json!({"error": "missing bearer"}).to_string()
+                        serde_json::json!({"error": "missing bearer"}).to_string(),
                     ))
                 });
             }
@@ -285,7 +286,7 @@ where
                 warn!(path = %path, error = %e, "Invalid JWT token");
                 return Box::pin(async move {
                     Err(actix_web::error::ErrorUnauthorized(
-                        serde_json::json!({"error": "invalid token"}).to_string()
+                        serde_json::json!({"error": "invalid token"}).to_string(),
                     ))
                 });
             }

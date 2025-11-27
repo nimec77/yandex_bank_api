@@ -6,9 +6,9 @@ use crate::domain::error::DomainError;
 use crate::domain::models::{CreateAccount, Deposit, Transfer, Withdraw};
 use crate::presentation::middleware::AuthenticatedUser;
 use actix_web::{FromRequest, HttpMessage, HttpResponse, ResponseError, web};
-use std::pin::Pin;
 use chrono::Utc;
 use serde::Serialize;
+use std::pin::Pin;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info, instrument, warn};
@@ -70,12 +70,24 @@ impl ResponseError for BankError {
 
         // Log error based on severity
         match self {
-            BankError::Validation(_) => warn!(error = %error_msg, status = %status, "Validation error"),
-            BankError::NotFound(_) => warn!(error = %error_msg, status = %status, "Resource not found"),
-            BankError::InsufficientFunds => warn!(error = %error_msg, status = %status, "Insufficient funds"),
-            BankError::Unauthorized(_) => warn!(error = %error_msg, status = %status, "Unauthorized"),
-            BankError::Database(_) => error!(error = %error_msg, status = %status, "Database error"),
-            BankError::Internal(_) => error!(error = %error_msg, status = %status, "Internal error"),
+            BankError::Validation(_) => {
+                warn!(error = %error_msg, status = %status, "Validation error")
+            }
+            BankError::NotFound(_) => {
+                warn!(error = %error_msg, status = %status, "Resource not found")
+            }
+            BankError::InsufficientFunds => {
+                warn!(error = %error_msg, status = %status, "Insufficient funds")
+            }
+            BankError::Unauthorized(_) => {
+                warn!(error = %error_msg, status = %status, "Unauthorized")
+            }
+            BankError::Database(_) => {
+                error!(error = %error_msg, status = %status, "Database error")
+            }
+            BankError::Internal(_) => {
+                error!(error = %error_msg, status = %status, "Internal error")
+            }
         }
 
         let error_response = ErrorResponse {
@@ -109,7 +121,10 @@ impl FromRequest for AuthenticatedUser {
     type Error = BankError;
     type Future = Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>>>>;
 
-    fn from_request(req: &actix_web::HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        _payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
         let user = req.extensions().get::<AuthenticatedUser>().cloned();
         Box::pin(async move {
             user.ok_or_else(|| BankError::Unauthorized("User not authenticated".to_string()))
@@ -141,7 +156,10 @@ pub async fn create_account(
     req: web::Json<CreateAccount>,
 ) -> Result<HttpResponse, BankError> {
     info!(name = %req.name, "Creating new account");
-    let account = state.service.create_account(req.into_inner()).await
+    let account = state
+        .service
+        .create_account(req.into_inner())
+        .await
         .map_err(|e| {
             error!(error = %e, "Failed to create account");
             e
@@ -162,11 +180,10 @@ pub async fn get_account(
 ) -> Result<HttpResponse, BankError> {
     let account_id = path.into_inner();
     info!(account_id = account_id, "Getting account balance");
-    let account = state.service.get_account(account_id).await
-        .map_err(|e| {
-            error!(account_id = account_id, error = %e, "Failed to get account");
-            e
-        })?;
+    let account = state.service.get_account(account_id).await.map_err(|e| {
+        error!(account_id = account_id, error = %e, "Failed to get account");
+        e
+    })?;
     info!(
         account_id = account.id,
         balance = account.balance.inner(),
@@ -254,17 +271,16 @@ pub async fn transfer(
         amount = amount,
         "Processing transfer"
     );
-    state.service.transfer(transfer_req).await
-        .map_err(|e| {
-            error!(
-                from_account_id = from_id,
-                to_account_id = to_id,
-                amount = amount,
-                error = %e,
-                "Failed to transfer"
-            );
-            e
-        })?;
+    state.service.transfer(transfer_req).await.map_err(|e| {
+        error!(
+            from_account_id = from_id,
+            to_account_id = to_id,
+            amount = amount,
+            error = %e,
+            "Failed to transfer"
+        );
+        e
+    })?;
     info!(
         from_account_id = from_id,
         to_account_id = to_id,
