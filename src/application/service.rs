@@ -1,4 +1,5 @@
-use crate::domain::models::{Account, Amount, CreateAccount, DomainError, Transfer};
+use crate::domain::error::DomainError;
+use crate::domain::models::{Account, Amount, CreateAccount, Transfer};
 use crate::domain::repository::AccountRepository;
 use anyhow::Result;
 use std::sync::Arc;

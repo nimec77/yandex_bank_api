@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Account {
@@ -42,14 +41,4 @@ pub struct Deposit {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Withdraw {
     pub amount: Amount,
-}
-
-#[derive(Error, Debug)]
-pub enum DomainError {
-    #[error("Insufficient funds")]
-    InsufficientFunds,
-    #[error("Account not found")]
-    AccountNotFound,
-    #[error("Invalid amount")]
-    InvalidAmount,
 }

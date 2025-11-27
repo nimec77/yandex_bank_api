@@ -1,15 +1,22 @@
+use crate::application::auth_service::AuthService;
 use crate::application::service::BankService;
 use crate::data::memory::InMemoryAccountRepository;
-use crate::domain::models::{CreateAccount, Deposit, DomainError, Transfer, Withdraw};
-use actix_web::{HttpResponse, ResponseError, web};
+use crate::data::user_repository::InMemoryUserRepository;
+use crate::domain::error::DomainError;
+use crate::domain::models::{CreateAccount, Deposit, Transfer, Withdraw};
+use crate::presentation::middleware::AuthenticatedUser;
+use actix_web::{FromRequest, HttpMessage, HttpResponse, ResponseError, web};
+use std::pin::Pin;
 use chrono::Utc;
 use serde::Serialize;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info, instrument, warn};
 
 // AppState holding the service
 pub struct AppState {
     pub service: BankService<InMemoryAccountRepository>,
+    pub auth_service: Arc<AuthService<InMemoryUserRepository>>,
 }
 
 // Uniform error response format
@@ -32,6 +39,8 @@ pub enum BankError {
     Unauthorized(String),
     #[error("Database error: {0}")]
     Database(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl ResponseError for BankError {
@@ -42,6 +51,7 @@ impl ResponseError for BankError {
             BankError::InsufficientFunds => actix_web::http::StatusCode::BAD_REQUEST,
             BankError::Unauthorized(_) => actix_web::http::StatusCode::UNAUTHORIZED,
             BankError::Database(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            BankError::Internal(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -55,6 +65,7 @@ impl ResponseError for BankError {
             BankError::InsufficientFunds => serde_json::json!({ "message": "Insufficient funds" }),
             BankError::Unauthorized(msg) => serde_json::json!({ "message": msg }),
             BankError::Database(msg) => serde_json::json!({ "message": msg }),
+            BankError::Internal(msg) => serde_json::json!({ "message": msg }),
         };
 
         // Log error based on severity
@@ -64,6 +75,7 @@ impl ResponseError for BankError {
             BankError::InsufficientFunds => warn!(error = %error_msg, status = %status, "Insufficient funds"),
             BankError::Unauthorized(_) => warn!(error = %error_msg, status = %status, "Unauthorized"),
             BankError::Database(_) => error!(error = %error_msg, status = %status, "Database error"),
+            BankError::Internal(_) => error!(error = %error_msg, status = %status, "Internal error"),
         }
 
         let error_response = ErrorResponse {
@@ -83,8 +95,25 @@ impl From<anyhow::Error> for BankError {
                 BankError::NotFound("Account not found".to_string())
             }
             Some(DomainError::InvalidAmount) => BankError::Validation("Invalid amount".to_string()),
+            Some(DomainError::Validation(msg)) => BankError::Validation(msg.clone()),
+            Some(DomainError::NotFound(msg)) => BankError::NotFound(msg.clone()),
+            Some(DomainError::Unauthorized(msg)) => BankError::Unauthorized(msg.clone()),
+            Some(DomainError::Internal(msg)) => BankError::Internal(msg.clone()),
             None => BankError::Database(err.to_string()),
         }
+    }
+}
+
+// AuthenticatedUser extractor
+impl FromRequest for AuthenticatedUser {
+    type Error = BankError;
+    type Future = Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>>>>;
+
+    fn from_request(req: &actix_web::HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
+        let user = req.extensions().get::<AuthenticatedUser>().cloned();
+        Box::pin(async move {
+            user.ok_or_else(|| BankError::Unauthorized("User not authenticated".to_string()))
+        })
     }
 }
 
