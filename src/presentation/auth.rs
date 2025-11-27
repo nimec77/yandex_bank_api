@@ -1,10 +1,7 @@
-use crate::application::auth_service::AuthService;
-use crate::data::user_repository::InMemoryUserRepository;
 use crate::domain::user::{CreateUser, LoginRequest};
-use crate::presentation::handlers::BankError;
+use crate::presentation::handlers::{AppState, BankError};
 use actix_web::{HttpResponse, web};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tracing::{error, info, instrument};
 
 #[derive(Serialize)]
@@ -28,14 +25,15 @@ pub struct GetTokenRequest {
     pub user_id: String,
 }
 
-#[instrument(skip(auth_service))]
+#[instrument(skip(state))]
 pub async fn register(
-    auth_service: web::Data<Arc<AuthService<InMemoryUserRepository>>>,
+    state: web::Data<AppState>,
     req: web::Json<CreateUser>,
 ) -> Result<HttpResponse, BankError> {
     info!(email = %req.email, "Registration request received");
 
-    let user = auth_service
+    let user = state
+        .auth_service
         .register_user(req.into_inner())
         .await
         .map_err(|e| {
@@ -52,17 +50,21 @@ pub async fn register(
     Ok(HttpResponse::Created().json(response))
 }
 
-#[instrument(skip(auth_service))]
+#[instrument(skip(state))]
 pub async fn login(
-    auth_service: web::Data<Arc<AuthService<InMemoryUserRepository>>>,
+    state: web::Data<AppState>,
     req: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, BankError> {
     info!(email = %req.email, "Login request received");
 
-    let token = auth_service.login(req.into_inner()).await.map_err(|e| {
-        error!(error = %e, "Failed to login");
-        BankError::from(e)
-    })?;
+    let token = state
+        .auth_service
+        .login(req.into_inner())
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to login");
+            BankError::from(e)
+        })?;
 
     let response = LoginResponse {
         access_token: token,
@@ -72,17 +74,21 @@ pub async fn login(
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[instrument(skip(auth_service))]
+#[instrument(skip(state))]
 pub async fn get_token(
-    auth_service: web::Data<Arc<AuthService<InMemoryUserRepository>>>,
+    state: web::Data<AppState>,
     req: web::Json<GetTokenRequest>,
 ) -> Result<HttpResponse, BankError> {
     info!(user_id = %req.user_id, "Token request received");
 
-    let token = auth_service.get_token(&req.user_id).await.map_err(|e| {
-        error!(error = %e, "Failed to generate token");
-        BankError::from(e)
-    })?;
+    let token = state
+        .auth_service
+        .get_token(&req.user_id)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to generate token");
+            BankError::from(e)
+        })?;
 
     let response = TokenResponse {
         access_token: token,
